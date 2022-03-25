@@ -13,9 +13,14 @@ class RedisClient {
 
   late final StreamQueue<RespObject> _queue;
 
+  var _isConnected = false;
+
+  bool get isConnected => _isConnected;
+
   RedisClient._(this.host, this.port, this._socket) {
     _socket.setOption(SocketOption.tcpNoDelay, true);
     _queue = StreamQueue(_socket.transform(respDecoder));
+    _isConnected = true;
   }
 
   /// Connects to a Redis server
@@ -318,6 +323,7 @@ class RedisClient {
 
   /// Closes the connection
   Future<void> close() async {
+    _isConnected = false;
     await _queue.cancel();
     await _socket.close();
   }
