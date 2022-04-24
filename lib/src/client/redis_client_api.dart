@@ -242,6 +242,10 @@ class RedisClient {
     return command('HVALS', [key]);
   }
 
+  Future<RedisReply> hmget(String key, List<String> fields) async {
+    return command('HMGET', [key, ...fields]);
+  }
+
   /// LPUSH - Pushes a element or a list of them to the head (first)
   Future<RedisReply> pushFirst(String key, element, [List? elements]) async {
     if (element is List) {
