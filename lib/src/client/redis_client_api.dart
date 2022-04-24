@@ -336,6 +336,10 @@ class RedisClient {
     return command('TTL $key');
   }
 
+  Future<RedisReply> publish(String channel, String message) async {
+    return command('PUBLISH', [channel, message]);
+  }
+
   /// Closes the connection
   Future<void> close() async {
     _isConnected = false;
