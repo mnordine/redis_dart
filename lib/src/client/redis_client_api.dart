@@ -54,7 +54,7 @@ class RedisClient {
 
   /// SETEX - Set a key with a value, expire in [duration]
   Future<RedisReply> setex(String key, value, Duration duration) async {
-    return command('PSETEX', [key, duration.inMilliseconds, '$value']);
+    return command('PSETEX', [key, '${duration.inMilliseconds}', '$value']);
   }
 
   /// SETRANGE - Set value at offset of a key
