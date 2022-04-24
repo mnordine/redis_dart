@@ -42,8 +42,15 @@ class RedisClient {
   }
 
   /// SET - Set a key with a value
-  Future<RedisReply> set(String key, value) async {
-    return command('SET', [key, '$value']);
+  Future<RedisReply> set(String key, value, {bool ifNotExists = false, Duration? expireIn}) async {
+    final args = [key, '$value'];
+
+    if (expireIn != null) args.addAll(['PX', '${expireIn.inMilliseconds}']);
+
+    if (ifNotExists) args.add('NX');
+
+    return command('SET', args);
+  }
   }
 
   /// SETRANGE - Set value at offset of a key
