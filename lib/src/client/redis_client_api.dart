@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:async/async.dart';
 import 'package:redis_dart/src/resp/resp_object.dart';
@@ -320,6 +321,15 @@ class RedisClient {
   Future<RedisReply> timeToLive(String key) async {
     return command('TTL $key');
   }
+
+  Stream<RedisReply> subscribe(List<String> channels) async* {
+    await command('SUBSCRIBE', channels);
+    while (await _queue.hasNext)
+      yield RedisReply(await _queue.next);
+  }
+
+  Future<RedisReply> publish({required String channel, required String message}) =>
+    command('PUBLISH', [channel, message]);
 
   /// Closes the connection
   Future<void> close() async {
