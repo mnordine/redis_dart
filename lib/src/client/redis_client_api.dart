@@ -43,8 +43,19 @@ class RedisClient {
   }
 
   /// SET - Set a key with a value
-  Future<RedisReply> set(String key, value) async {
-    return command('SET', [key, '$value']);
+  Future<RedisReply> set(String key, value, {bool ifNotExists = false, Duration? expireIn}) async {
+    final args = [key, '$value'];
+
+    if (expireIn != null) args.addAll(['PX', '${expireIn.inMilliseconds}']);
+
+    if (ifNotExists) args.add('NX');
+
+    return command('SET', args);
+  }
+
+  /// SETEX - Set a key with a value, expire in [duration]
+  Future<RedisReply> setex(String key, value, Duration duration) async {
+    return command('PSETEX', [key, '${duration.inMilliseconds}', '$value']);
   }
 
   /// SETRANGE - Set value at offset of a key
@@ -230,6 +241,10 @@ class RedisClient {
   /// HVALS - Gets the values of a Hash
   Future<RedisReply> mapValues(String key) async {
     return command('HVALS', [key]);
+  }
+
+  Future<RedisReply> hmget(String key, List<String> fields) async {
+    return command('HMGET', [key, ...fields]);
   }
 
   /// LPUSH - Pushes a element or a list of them to the head (first)
