@@ -333,9 +333,11 @@ class RedisClient {
 
   /// Closes the connection
   Future<void> close() async {
-    _isConnected = false;
-    await _queue.cancel();
-    await _socket.close();
+    if (_isConnected) {
+      _isConnected = false;
+      await _queue.cancel(immediate: true);
+      await _socket.close();
+    }
   }
 
   static Error _error(String msg) {
