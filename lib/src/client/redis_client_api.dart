@@ -322,14 +322,26 @@ class RedisClient {
     return command('TTL $key');
   }
 
-  Stream<RedisReply> subscribe(List<String> channels) async* {
+  Future<Stream<PubSubEvent>> subscribe(List<String> channels) async {
     await command('SUBSCRIBE', channels);
-    while (await _queue.hasNext)
-      yield RedisReply(await _queue.next);
+    return _getEvents();
+  }
+
+  Stream<PubSubEvent> _getEvents() async* {
+    while (_isConnected && await _queue.hasNext) {
+      try {
+        final array = await _queue.next as RespArray;
+        final list = array.toObject() as List;
+        if (list.first == 'message')
+          yield PubSubEvent(channel: list[1] as String, message: list[2] as String);
+      } catch (_) {}
+    }
   }
 
   Future<RedisReply> publish({required String channel, required String message}) =>
     command('PUBLISH', [channel, message]);
+
+  Future<RedisReply> unsubscribe([List<String> channels = const []]) => command('UNSUBSCRIBE', channels);
 
   /// Closes the connection
   Future<void> close() async {
@@ -343,6 +355,13 @@ class RedisClient {
   static Error _error(String msg) {
     return _RedisConnectionError(msg);
   }
+}
+
+class PubSubEvent {
+  final String channel;
+  final String message;
+
+  PubSubEvent({required this.channel, required this.message});
 }
 
 class _RedisConnectionError extends Error {

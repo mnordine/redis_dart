@@ -50,13 +50,22 @@ void main() {
   });
 
   test('Pub/sub works', () async {
-    final sub = client.subscribe(['test']).listen((message) => print('message: $message'));
+    const channels = ['test'];
+    var count = 0;
+    final subClient = await RedisClient.connect('localhost');
+    final stream = await subClient.subscribe(channels);
+    final sub = stream.listen((_) => count++);
 
-    final publisher = await RedisClient.connect('localhost');
-    await publisher.publish(channel: 'test', message: 'hi');
-    await publisher.publish(channel: 'test', message: 'there');
+    await client.publish(channel: 'test', message: 'hi');
+    await client.publish(channel: 'test', message: 'there');
 
-    sub.cancel();
-    publisher.close();
+    // Need to wait a bit for all the messages to be received.
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    await subClient.unsubscribe(channels);
+    await subClient.close();
+    await sub.cancel();
+
+    expect(count, equals(2));
   });
 }
