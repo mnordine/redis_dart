@@ -304,6 +304,11 @@ class RedisClient {
     return command('LRANGE', [key, '$start', '$stop']);
   }
 
+  /// LTRIM - Trim a list in a range, [end] is inclusive.
+  Future<RedisReply> ltrim(String key, int start, int end) async {
+    return command('LTRIM', [key, '$start', '$end']);
+  }
+
   /// SADD - Adds a member or more to a Set
   Future<RedisReply> addSet(String key, member, [List? members]) async {
     final _members = members?.map((e) => '$e').toList();
