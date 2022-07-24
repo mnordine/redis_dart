@@ -4,12 +4,73 @@ import 'dart:convert';
 import '../resp/resp_object.dart';
 import '../resp/resp_parser.dart';
 
+_PacketBuffer? _buffer;
+
+class _PacketBuffer {
+  final _buffer = <int>[];
+  var _currentSize = 0;
+  final int _totalSize;
+
+  _PacketBuffer({required int totalSize}) : _totalSize = totalSize;
+
+  void add(Uint8List bytes) {
+    _buffer.addAll(bytes);
+    _currentSize += bytes.lengthInBytes;
+  }
+
+  bool get complete => _currentSize >= _totalSize;
+
+  List<int> get bytes => _buffer;
+
+  void clear() => _buffer.clear();
+}
+
 final _parser = RespParser();
 final respDecoder = StreamTransformer<Uint8List, RespObject>.fromHandlers(
-  handleData: (event, sink) => sink.add(_parser.parse(utf8.decode(event))),
+  handleData: _handleData,
   handleError: (err, st, sink) => sink.addError(err),
   handleDone: (sink) => sink.close(),
 );
+
+void _handleData(Uint8List event, EventSink<RespObject> sink) {
+
+  // If buffer is not empty, this packet is a continuation of a bulk string.
+  final buffer = _buffer;
+  if (buffer != null) {
+    buffer.add(event);
+    if (!buffer.complete) return;
+
+    final content = utf8.decode(buffer.bytes);
+    buffer.clear();
+    _buffer = null;
+
+    sink.add(_parser.parse(content));
+    return;
+  }
+
+  final s = utf8.decode(event);
+  if (s.startsWith(r'$')) {
+    final i = s.indexOf('\r\n', 1);
+    final n = s.substring(1, i);
+    final len = int.parse(n);
+
+    // Special case for null bulk string.
+    if (len == -1) {
+      sink.add(_parser.parse(s));
+      return;
+    }
+
+    final totalSize = r'$'.length + len + '\r\n'.length;
+    final rest = s.substring(i + '\r\n'.length);
+    if ((rest.length - '\r\n'.length) < len) {
+      // Need to buffer
+      _buffer = _PacketBuffer(totalSize: totalSize)..add(event);
+      return;
+    }
+  }
+
+  sink.add(_parser.parse(s));
+}
 
 List<RespBulkString> mapBulkStrings(List<String> strs) {
   return strs.map((e) => RespBulkString(e)).toList();
