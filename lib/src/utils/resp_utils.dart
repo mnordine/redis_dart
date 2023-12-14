@@ -4,7 +4,7 @@ import 'dart:convert';
 import '../resp/resp_object.dart';
 import '../resp/resp_parser.dart';
 
-_PacketBuffer? _buffer;
+_PacketBuffer? _bulkStringBuffer;
 
 class _PacketBuffer {
   final _buffer = <int>[];
@@ -35,14 +35,14 @@ final respDecoder = StreamTransformer<Uint8List, RespObject>.fromHandlers(
 void _handleData(Uint8List event, EventSink<RespObject> sink) {
 
   // If buffer is not empty, this packet is a continuation of a bulk string.
-  final buffer = _buffer;
-  if (buffer != null) {
-    buffer.add(event);
-    if (!buffer.complete) return;
+  final bulkStringBuffer = _bulkStringBuffer;
+  if (bulkStringBuffer != null) {
+    bulkStringBuffer.add(event);
+    if (!bulkStringBuffer.complete) return;
 
-    final content = utf8.decode(buffer.bytes);
-    buffer.clear();
-    _buffer = null;
+    final content = utf8.decode(bulkStringBuffer.bytes);
+    bulkStringBuffer.clear();
+    _bulkStringBuffer = null;
 
     sink.add(_parser.parse(content));
     return;
@@ -64,7 +64,7 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     final rest = s.substring(i + '\r\n'.length);
     if ((rest.length - '\r\n'.length) < len) {
       // Need to buffer
-      _buffer = _PacketBuffer(totalSize: totalSize)..add(event);
+      _bulkStringBuffer = _PacketBuffer(totalSize: totalSize)..add(event);
       return;
     }
   }
