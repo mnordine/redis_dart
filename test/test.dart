@@ -49,6 +49,19 @@ void main() {
     await client.delete('map');
   });
 
+  test('long json', () async {
+    final data = <String, String>{};
+    for (var i = 0; i < 10000; i++) {
+      data['kasdklfjdsaklfjkdfsajfjsakdfjklasdf-$i'] = 'somasdlkfjdskalfjaksdfjklasdfjkfjksadfjaksldfjfjs-$i';
+    }
+
+    await client.setMap('test-map', data);
+
+    final blah = (await client.getMap('test-map')).value as Map;
+    final key = 'kasdklfjdsaklfjkdfsajfjsakdfjklasdf-9999';
+    expect(blah[key], equals(data[key]));
+  });
+
   test('Pub/sub works', () async {
     const channels = ['test'];
     var count = 0;
