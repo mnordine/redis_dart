@@ -5,6 +5,7 @@ import '../resp/resp_object.dart';
 import '../resp/resp_parser.dart';
 
 _PacketBuffer? _bulkStringBuffer;
+_PacketBuffer? _listBuffer;
 
 class _PacketBuffer {
   final _buffer = <int>[];
@@ -48,7 +49,28 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     return;
   }
 
+  final listBuffer = _listBuffer;
+  if (listBuffer != null) {
+    listBuffer.add(event);
+
+    try {
+      final content = utf8.decode(listBuffer.bytes);
+      final o = _parser.parse(content);
+
+      listBuffer.clear();
+      _listBuffer = null;
+
+      sink.add(o);
+      return;
+    } on RangeError catch (_) {
+      // Expected, nothing to do.
+      return;
+    }
+  }
+
   final s = utf8.decode(event);
+
+  // Multi-bulk string, may need to buffer.
   if (s.startsWith(r'$')) {
     final i = s.indexOf('\r\n', 1);
     final n = s.substring(1, i);
@@ -65,6 +87,18 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     if ((rest.length - '\r\n'.length) < len) {
       // Need to buffer
       _bulkStringBuffer = _PacketBuffer(totalSize: totalSize)..add(event);
+      return;
+    }
+  // List, may need to buffer
+  } else if (s.startsWith('*')) {
+
+    // Try parsing first, if ok, nothing to do.
+    // If RangeError occurs, then we need to buffer.
+    try {
+      sink.add(_parser.parse(s));
+      return;
+    } on RangeError catch (_) {
+      _listBuffer = _PacketBuffer(totalSize: 512 * 1024 * 1024)..add(event); // Max size is 512MB.
       return;
     }
   }
