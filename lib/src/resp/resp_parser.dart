@@ -36,10 +36,11 @@ class RespParser {
     var char = _advance();
     switch (char) {
       case '*':
-        var value = _peek();
+        final chars = <String>[];
         while (_peek() != '\r') {
-          _advance();
+          chars.add(_advance());
         }
+        final value = chars.join('');
         return RespToken(
           type: RespType.array,
           content: int.tryParse(value) ?? -1,
