@@ -364,10 +364,10 @@ class RedisClient {
   Future<RedisReply> unsubscribe([List<String> channels = const []]) => command('UNSUBSCRIBE', channels);
 
   /// Closes the connection
-  Future<void> close() async {
+  Future<void> close({bool immediate = false}) async {
     if (_isConnected) {
       _isConnected = false;
-      await _queue.cancel(immediate: true);
+      await _queue.cancel(immediate: immediate);
       await _socket.close();
     }
   }
