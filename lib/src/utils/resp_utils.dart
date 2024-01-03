@@ -41,23 +41,15 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     bulkStringBuffer.add(event);
     if (!bulkStringBuffer.complete) return;
 
+    final content = utf8.decode(bulkStringBuffer.bytes);
     try {
-      final content = utf8.decode(bulkStringBuffer.bytes);
       sink.add(_parser.parse(content));
-      return;
-    } catch (e) {
-      final buff = StringBuffer('error on bulk string buffer: $e');
-      try {
-        final content = utf8.decode(bulkStringBuffer.bytes);
-        buff.write(', content: $content');
-      } catch (e) {
-        buff.write(', error decoding content: $e');
-      } finally {
-        bulkStringBuffer.clear();
-        _bulkStringBuffer = null;
-      }
-      print(buff);
+    } catch (_) {
+      print('error parsing bulk string: $content');
       rethrow;
+    } finally {
+      bulkStringBuffer.clear();
+      _bulkStringBuffer = null;
     }
   }
 
