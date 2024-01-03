@@ -44,6 +44,7 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     final content = utf8.decode(bulkStringBuffer.bytes);
     try {
       sink.add(_parser.parse(content));
+      return;
     } catch (_) {
       print('error parsing bulk string: $content');
       rethrow;
