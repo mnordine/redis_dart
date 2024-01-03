@@ -43,9 +43,6 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
 
     try {
       final content = utf8.decode(bulkStringBuffer.bytes);
-      bulkStringBuffer.clear();
-      _bulkStringBuffer = null;
-
       sink.add(_parser.parse(content));
       return;
     } catch (e) {
@@ -55,6 +52,9 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
         buff.write(', content: $content');
       } catch (e) {
         buff.write(', error decoding content: $e');
+      } finally {
+        bulkStringBuffer.clear();
+        _bulkStringBuffer = null;
       }
       print(buff);
       rethrow;
