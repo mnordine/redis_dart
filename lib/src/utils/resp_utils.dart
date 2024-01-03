@@ -65,6 +65,17 @@ void _handleData(Uint8List event, EventSink<RespObject> sink) {
     } on RangeError catch (_) {
       // Expected, nothing to do.
       return;
+    } catch (e) {
+      final buff = StringBuffer('error on list buffer: $e');
+      try {
+        final content = utf8.decode(listBuffer.bytes);
+        buff.write(', content: $content');
+      } catch (e) {
+        buff.write(', error decoding content: $e');
+      }
+      print(buff);
+
+      rethrow;
     }
   }
 
