@@ -20,7 +20,7 @@ class RedisClient {
 
   RedisClient._(this.host, this.port, this._socket) {
     _socket.setOption(SocketOption.tcpNoDelay, true);
-    _queue = StreamQueue(_socket.transform(respDecoder));
+    _queue = StreamQueue(_socket.transform(RespDecoder().decoder));
     _isConnected = true;
   }
 

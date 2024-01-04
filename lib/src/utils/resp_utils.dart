@@ -4,8 +4,7 @@ import 'dart:convert';
 import '../resp/resp_object.dart';
 import '../resp/resp_parser.dart';
 
-_PacketBuffer? _bulkStringBuffer;
-_PacketBuffer? _listBuffer;
+final _parser = RespParser();
 
 class _PacketBuffer {
   final _buffer = <int>[];
@@ -26,100 +25,110 @@ class _PacketBuffer {
   void clear() => _buffer.clear();
 }
 
-final _parser = RespParser();
-final respDecoder = StreamTransformer<Uint8List, RespObject>.fromHandlers(
-  handleData: _handleData,
-  handleError: (err, st, sink) => sink.addError(err),
-  handleDone: (sink) => sink.close(),
-);
+class RespDecoder {
+  _PacketBuffer? _bulkStringBuffer;
+  _PacketBuffer? _listBuffer;
 
-void _handleData(Uint8List event, EventSink<RespObject> sink) {
+  late final StreamTransformer<Uint8List, RespObject> _decoder;
 
-  // If buffer is not empty, this packet is a continuation of a bulk string.
-  final bulkStringBuffer = _bulkStringBuffer;
-  if (bulkStringBuffer != null) {
-    bulkStringBuffer.add(event);
-    if (!bulkStringBuffer.complete) return;
-
-    final content = utf8.decode(bulkStringBuffer.bytes);
-    try {
-      sink.add(_parser.parse(content));
-      return;
-    } catch (_) {
-      print('error parsing bulk string: $content');
-      rethrow;
-    } finally {
-      bulkStringBuffer.clear();
-      _bulkStringBuffer = null;
-    }
+  RespDecoder() {
+    _decoder = StreamTransformer<Uint8List, RespObject>.fromHandlers(
+      handleData: _handleData,
+      handleError: (err, st, sink) => sink.addError(err),
+      handleDone: (sink) => sink.close(),
+    );
   }
 
-  final listBuffer = _listBuffer;
-  if (listBuffer != null) {
-    listBuffer.add(event);
+  StreamTransformer<Uint8List, RespObject> get decoder => _decoder;
 
-    try {
-      final content = utf8.decode(listBuffer.bytes);
-      final o = _parser.parse(content);
+  void _handleData(Uint8List event, EventSink<RespObject> sink) {
 
-      listBuffer.clear();
-      _listBuffer = null;
+    // If buffer is not empty, this packet is a continuation of a bulk string.
+    final bulkStringBuffer = _bulkStringBuffer;
+    if (bulkStringBuffer != null) {
+      bulkStringBuffer.add(event);
+      if (!bulkStringBuffer.complete) return;
 
-      sink.add(o);
-      return;
-    } on RangeError catch (_) {
-      // Expected, nothing to do.
-      return;
-    } catch (e) {
-      final buff = StringBuffer('error on list buffer: $e');
+      final content = utf8.decode(bulkStringBuffer.bytes);
+      try {
+        sink.add(_parser.parse(content));
+        return;
+      } catch (_) {
+        print('error parsing bulk string: $content');
+        rethrow;
+      } finally {
+        bulkStringBuffer.clear();
+        _bulkStringBuffer = null;
+      }
+    }
+
+    final listBuffer = _listBuffer;
+    if (listBuffer != null) {
+      listBuffer.add(event);
+
       try {
         final content = utf8.decode(listBuffer.bytes);
-        buff.write(', content: $content');
+        final o = _parser.parse(content);
+
+        listBuffer.clear();
+        _listBuffer = null;
+
+        sink.add(o);
+        return;
+      } on RangeError catch (_) {
+        // Expected, nothing to do.
+        return;
       } catch (e) {
-        buff.write(', error decoding content: $e');
+        final buff = StringBuffer('error on list buffer: $e');
+        try {
+          final content = utf8.decode(listBuffer.bytes);
+          buff.write(', content: $content');
+        } catch (e) {
+          buff.write(', error decoding content: $e');
+        }
+        print(buff);
+
+        rethrow;
       }
-      print(buff);
-
-      rethrow;
     }
+
+    final s = utf8.decode(event);
+
+    // Multi-bulk string, may need to buffer.
+    if (s.startsWith(r'$')) {
+      final i = s.indexOf('\r\n', 1);
+      final n = s.substring(1, i);
+      final len = int.parse(n);
+
+      // Special case for null bulk string.
+      if (len == -1) {
+        sink.add(_parser.parse(s));
+        return;
+      }
+
+      final totalSize = r'$'.length + len + '\r\n'.length;
+      final rest = s.substring(i + '\r\n'.length);
+      if ((rest.length - '\r\n'.length) < len) {
+        // Need to buffer
+        _bulkStringBuffer = _PacketBuffer(totalSize: totalSize)..add(event);
+        return;
+      }
+    // List, may need to buffer
+    } else if (s.startsWith('*')) {
+
+      // Try parsing first, if ok, nothing to do.
+      // If RangeError occurs, then we need to buffer.
+      try {
+        sink.add(_parser.parse(s));
+        return;
+      } on RangeError catch (_) {
+        _listBuffer = _PacketBuffer(totalSize: 512 * 1024 * 1024)..add(event); // Max size is 512MB.
+        return;
+      }
+    }
+
+    sink.add(_parser.parse(s));
   }
-
-  final s = utf8.decode(event);
-
-  // Multi-bulk string, may need to buffer.
-  if (s.startsWith(r'$')) {
-    final i = s.indexOf('\r\n', 1);
-    final n = s.substring(1, i);
-    final len = int.parse(n);
-
-    // Special case for null bulk string.
-    if (len == -1) {
-      sink.add(_parser.parse(s));
-      return;
-    }
-
-    final totalSize = r'$'.length + len + '\r\n'.length;
-    final rest = s.substring(i + '\r\n'.length);
-    if ((rest.length - '\r\n'.length) < len) {
-      // Need to buffer
-      _bulkStringBuffer = _PacketBuffer(totalSize: totalSize)..add(event);
-      return;
-    }
-  // List, may need to buffer
-  } else if (s.startsWith('*')) {
-
-    // Try parsing first, if ok, nothing to do.
-    // If RangeError occurs, then we need to buffer.
-    try {
-      sink.add(_parser.parse(s));
-      return;
-    } on RangeError catch (_) {
-      _listBuffer = _PacketBuffer(totalSize: 512 * 1024 * 1024)..add(event); // Max size is 512MB.
-      return;
-    }
-  }
-
-  sink.add(_parser.parse(s));
 }
 
 List<RespBulkString> mapBulkStrings(List<String> strs) {
