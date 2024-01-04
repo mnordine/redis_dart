@@ -1,3 +1,4 @@
+import 'dart:convert' show utf8;
 import 'package:redis_dart/src/resp/resp_types.dart';
 
 abstract class RespObject {
@@ -73,7 +74,7 @@ class RespBulkString extends RespObject {
   final int length;
 
   RespBulkString(this.content)
-      : length = content?.length ?? -1,
+      : length = content == null ? -1 : utf8.encode(content).lengthInBytes,
         super(content);
 
   @override
