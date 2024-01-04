@@ -126,7 +126,12 @@ class RespDecoder {
       }
     }
 
-    sink.add(_parser.parse(s));
+    try {
+      sink.add(_parser.parse(s));
+    } catch (_) {
+      print('redis error parsing $s');
+      rethrow;
+    }
   }
 }
 
