@@ -106,7 +106,7 @@ class RespDecoder {
         return;
       }
 
-      final totalSize = r'$'.length + '\r\n'.length + len + '\r\n'.length;
+      final totalSize = r'$'.length + '\r\n'.length + n.length + len + '\r\n'.length;
       if (event.lengthInBytes < totalSize) {
         // Need to buffer
         _bulkStringBuffer = _PacketBuffer(totalSize: totalSize)..add(event);
